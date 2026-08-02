@@ -7,17 +7,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from ultralytics import YOLO
 
-
 app = FastAPI(
     title="SentinelAI API",
-    description="AI Powered Infrastructure Damage Detection",
     version="1.0"
 )
 
-
-# -------------------------------
-# Enable CORS
-# -------------------------------
+# ------------------------------------
+# CORS
+# ------------------------------------
 
 app.add_middleware(
     CORSMiddleware,
@@ -27,64 +24,55 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
-# -------------------------------
-# Directories
-# -------------------------------
+# ------------------------------------
+# Paths
+# ------------------------------------
 
 BASE_DIR = Path(__file__).resolve().parent
 
 UPLOAD_DIR = BASE_DIR / "uploads"
-RESULTS_DIR = BASE_DIR / "results"
+RESULT_DIR = BASE_DIR / "results"
 MODEL_PATH = BASE_DIR / "best.pt"
 
-
 UPLOAD_DIR.mkdir(exist_ok=True)
-RESULTS_DIR.mkdir(exist_ok=True)
+RESULT_DIR.mkdir(exist_ok=True)
 
+# ------------------------------------
+# Load Model
+# ------------------------------------
 
-# -------------------------------
-# Load YOLO Model
-# -------------------------------
-
-print("Loading YOLO model...")
+print("Loading model...")
 
 model = YOLO(str(MODEL_PATH))
 
-# Optimize model
-model.fuse()
+print("Model Loaded Successfully")
 
-print("YOLO model loaded successfully")
+print("Classes :", model.names)
 
-
-# -------------------------------
-# Serve Result Images
-# -------------------------------
+# ------------------------------------
+# Static Folder
+# ------------------------------------
 
 app.mount(
     "/results",
-    StaticFiles(directory=str(RESULTS_DIR)),
+    StaticFiles(directory=str(RESULT_DIR)),
     name="results"
 )
 
-
-# -------------------------------
-# Home API
-# -------------------------------
+# ------------------------------------
+# Home
+# ------------------------------------
 
 @app.get("/")
 def home():
 
     return {
-        "status": "running",
-        "message": "SentinelAI Backend Successfully Deployed 🚀"
+        "message": "SentinelAI Backend Running"
     }
 
-
-
-# -------------------------------
-# Prediction API
-# -------------------------------
+# ------------------------------------
+# Prediction
+# ------------------------------------
 
 @app.post("/predict")
 async def predict(
@@ -94,92 +82,66 @@ async def predict(
 
     try:
 
-        # Save uploaded image
-
         image_path = UPLOAD_DIR / file.filename
 
-
         with open(image_path, "wb") as buffer:
-
-            shutil.copyfileobj(
-                file.file,
-                buffer
-            )
-
-
-        # -------------------------------
-        # YOLO Prediction
-        # -------------------------------
+            shutil.copyfileobj(file.file, buffer)
 
         results = model.predict(
-        source=str(image_path),
-        conf=0.30,
-        imgsz=224,
-        save=True,
-        project=str(RESULTS_DIR),
-        name="prediction",
-        exist_ok=True,
-        verbose=False,
-        device="cpu"
-    )
 
+            source=str(image_path),
+
+            conf=0.05,
+
+            imgsz=640,
+
+            device="cpu",
+
+            save=False,
+
+            verbose=False
+
+        )
 
         detections = []
 
+        output_path = RESULT_DIR / file.filename
 
         for result in results:
-
-
-            # Collect detections
 
             for box in result.boxes:
 
                 detections.append({
 
-                    "class":
-                    model.names[int(box.cls[0])],
+                    "class": model.names[int(box.cls)],
 
-                    "confidence":
-                    round(float(box.conf[0]), 2)
+                    "confidence": round(float(box.conf), 2)
 
                 })
 
-
-            # -------------------------------
-            # Save annotated image
-            # -------------------------------
-
-            annotated_image = result.plot()
-
-            output_path = RESULTS_DIR / file.filename
+            annotated = result.plot()
 
             cv2.imwrite(
                 str(output_path),
-                annotated_image
+                annotated
             )
 
-
         base_url = str(request.base_url).rstrip("/")
-
 
         return {
 
             "success": True,
 
-            "total_detections":
-            len(detections),
+            "total_detections": len(detections),
 
-            "detections":
-            detections,
+            "detections": detections,
 
             "output_image":
-            f"{base_url}/results/{file.filename}"
+                f"{base_url}/results/{file.filename}"
 
         }
 
-
     except Exception as e:
-
 
         raise HTTPException(
             status_code=500,
