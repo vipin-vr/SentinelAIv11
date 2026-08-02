@@ -115,6 +115,9 @@ async def predict(
             exist_ok=True,
             verbose=False
         )
+        print("YOLO RESULTS:")
+        for r in results:
+            print(r.boxes)
 
 
         detections = []
