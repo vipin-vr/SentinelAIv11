@@ -107,8 +107,8 @@ async def predict(
 
         results = model.predict(
             source=str(image_path),
-            conf=0.25,
-            imgsz=320,
+            conf=0.05,
+            imgsz=640,
             save=True,
             project=str(RESULTS_DIR),
             name="prediction",
