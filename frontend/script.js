@@ -2,22 +2,36 @@
 // SentinelAI Frontend Script
 // ==============================
 
+// Backend API URL
+const API_URL =
+"https://sentinelai-backend-namk.onrender.com/predict";
+
+
+// ==============================
+// Elements
+// ==============================
+
 const imageInput = document.getElementById("imageInput");
 const previewImage = document.getElementById("previewImage");
 const outputImage = document.getElementById("outputImage");
 
 const statusBox = document.getElementById("status");
+
 const totalBox = document.getElementById("total");
 const crackBox = document.getElementById("cracks");
 const potholeBox = document.getElementById("potholes");
+
 const detectionsBox = document.getElementById("detections");
 
+const dashboardBtn =
+document.getElementById("dashboardBtn");
+
 
 // ==============================
-// Preview Uploaded Image
+// Preview Image
 // ==============================
 
-imageInput.addEventListener("change", function () {
+imageInput.addEventListener("change", () => {
 
     const file = imageInput.files[0];
 
@@ -29,39 +43,65 @@ imageInput.addEventListener("change", function () {
 
     detectionsBox.innerHTML = "";
 
-    statusBox.innerHTML = "📷 Image Ready for AI Analysis";
+    dashboardBtn.style.display = "none";
 
-    statusBox.style.background = "#0ea5e9";
+    totalBox.innerHTML = "0";
+    crackBox.innerHTML = "0";
+    potholeBox.innerHTML = "0";
+
+    statusBox.innerHTML =
+        "📷 Image Ready For AI Analysis";
+
+    statusBox.style.background =
+        "#0ea5e9";
 
 });
 
 
+
 // ==============================
-// Scroll Function
+// Scroll To Upload
 // ==============================
 
 function scrollToUpload() {
 
-    document.getElementById("upload").scrollIntoView({
+    document
+        .getElementById("upload")
+        .scrollIntoView({
 
-        behavior: "smooth"
+            behavior: "smooth"
 
-    });
+        });
 
 }
+
+
+
+// ==============================
+// Go To Dashboard
+// ==============================
+
+function goToDashboard() {
+
+    document
+        .getElementById("dashboard")
+        .scrollIntoView({
+
+            behavior: "smooth"
+
+        });
+
+}
+
 
 
 // ==============================
 // Animate Numbers
 // ==============================
 
-function animateValue(element, endValue) {
+function animateValue(element, value) {
 
     let start = 0;
-
-    const duration = 800;
-
-    const stepTime = Math.max(Math.floor(duration / endValue), 30);
 
     const timer = setInterval(() => {
 
@@ -69,17 +109,18 @@ function animateValue(element, endValue) {
 
         element.innerHTML = start;
 
-        if (start >= endValue) {
+        if (start >= value) {
 
-            element.innerHTML = endValue;
+            element.innerHTML = value;
 
             clearInterval(timer);
 
         }
 
-    }, stepTime);
+    }, 40);
 
 }
+
 
 
 // ==============================
@@ -98,13 +139,15 @@ async function predict() {
 
     }
 
-    const button = document.querySelector(".upload-box button");
+    const button =
+        document.querySelector(".upload-box button");
 
     button.disabled = true;
 
     button.innerHTML = "Analyzing...";
 
-    statusBox.innerHTML = "🤖 AI is analyzing the image...";
+    statusBox.innerHTML =
+        "🤖 AI is analyzing image...";
 
     statusBox.style.background = "#f59e0b";
 
@@ -112,13 +155,15 @@ async function predict() {
 
     outputImage.src = "";
 
+    dashboardBtn.style.display = "none";
+
     const formData = new FormData();
 
     formData.append("file", file);
 
     try {
 
-        const response = await fetch("http://127.0.0.1:8000/predict", {
+        const response = await fetch(API_URL, {
 
             method: "POST",
 
@@ -134,21 +179,26 @@ async function predict() {
 
         const data = await response.json();
 
+        console.log(data);
+
         animateValue(totalBox, data.total_detections);
 
-        let crackCount = 0;
+        let cracks = 0;
+        let potholes = 0;
 
-        let potholeCount = 0;
-
-        let detectionHTML = "";
+        let html = "";
 
         data.detections.forEach((item, index) => {
 
-            if (item.class.toLowerCase() === "crack") crackCount++;
+            const cls = item.class.toLowerCase();
 
-            if (item.class.toLowerCase() === "pothole") potholeCount++;
+            if (cls.includes("crack"))
+                cracks++;
 
-            detectionHTML += `
+            if (cls.includes("pothole"))
+                potholes++;
+
+            html += `
 
             <div class="detection-item">
 
@@ -165,29 +215,39 @@ async function predict() {
 
         });
 
-        animateValue(crackBox, crackCount);
+        animateValue(crackBox, cracks);
 
-        animateValue(potholeBox, potholeCount);
+        animateValue(potholeBox, potholes);
 
-        detectionsBox.innerHTML = detectionHTML;
+        detectionsBox.innerHTML = html;
 
         if (data.total_detections > 0) {
 
-            statusBox.innerHTML = "⚠ Maintenance Required";
+            statusBox.innerHTML =
+                "⚠ Maintenance Required";
 
-            statusBox.style.background = "#dc2626";
+            statusBox.style.background =
+                "#dc2626";
 
         }
 
         else {
 
-            statusBox.innerHTML = "✅ Infrastructure is Safe";
+            statusBox.innerHTML =
+                "✅ Infrastructure is Safe";
 
-            statusBox.style.background = "#16a34a";
+            statusBox.style.background =
+                "#16a34a";
 
         }
 
-        outputImage.src = data.output_image + "?t=" + new Date().getTime();
+        outputImage.src =
+            data.output_image +
+            "?time=" +
+            Date.now();
+
+        // Show Dashboard Button
+        dashboardBtn.style.display = "block";
 
     }
 
@@ -195,9 +255,11 @@ async function predict() {
 
         console.log(error);
 
-        statusBox.innerHTML = "❌ Unable to connect to FastAPI Backend";
+        statusBox.innerHTML =
+            "❌ Unable To Connect Backend";
 
-        statusBox.style.background = "#dc2626";
+        statusBox.style.background =
+            "#dc2626";
 
     }
 
@@ -212,35 +274,42 @@ async function predict() {
 }
 
 
+
 // ==============================
-// Navbar Scroll Effect
+// Navbar Effect
 // ==============================
 
 window.addEventListener("scroll", () => {
 
-    const navbar = document.querySelector(".navbar");
+    const navbar =
+        document.querySelector(".navbar");
 
     if (window.scrollY > 50) {
 
-        navbar.style.background = "rgba(5,17,31,0.98)";
+        navbar.style.background =
+            "rgba(5,17,31,0.98)";
 
-        navbar.style.boxShadow = "0 10px 30px rgba(0,0,0,.35)";
+        navbar.style.boxShadow =
+            "0 10px 30px rgba(0,0,0,.35)";
 
     }
 
     else {
 
-        navbar.style.background = "rgba(7,20,38,.92)";
+        navbar.style.background =
+            "rgba(7,20,38,.92)";
 
-        navbar.style.boxShadow = "none";
+        navbar.style.boxShadow =
+            "none";
 
     }
 
 });
 
 
+
 // ==============================
-// Fade In Animation
+// Scroll Animation
 // ==============================
 
 const observer = new IntersectionObserver((entries) => {
@@ -251,7 +320,8 @@ const observer = new IntersectionObserver((entries) => {
 
             entry.target.style.opacity = "1";
 
-            entry.target.style.transform = "translateY(0px)";
+            entry.target.style.transform =
+                "translateY(0px)";
 
         }
 
@@ -271,9 +341,11 @@ document.querySelectorAll(
 
     card.style.opacity = "0";
 
-    card.style.transform = "translateY(50px)";
+    card.style.transform =
+        "translateY(50px)";
 
-    card.style.transition = "0.8s";
+    card.style.transition =
+        "0.8s";
 
     observer.observe(card);
 

@@ -112,11 +112,16 @@ async def predict(
         # -------------------------------
 
         results = model.predict(
-            source=str(image_path),
-            conf=0.05,
-            imgsz=320,
-            verbose=False
-        )
+        source=str(image_path),
+        conf=0.30,
+        imgsz=224,
+        save=True,
+        project=str(RESULTS_DIR),
+        name="prediction",
+        exist_ok=True,
+        verbose=False,
+        device="cpu"
+    )
 
 
         detections = []
