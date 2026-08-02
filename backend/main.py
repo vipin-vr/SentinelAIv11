@@ -1,7 +1,7 @@
-import os
 import shutil
 from pathlib import Path
 
+import cv2
 from fastapi import FastAPI, UploadFile, File, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -51,6 +51,9 @@ print("Loading YOLO model...")
 
 model = YOLO(str(MODEL_PATH))
 
+# Optimize model
+model.fuse()
+
 print("YOLO model loaded successfully")
 
 
@@ -78,6 +81,7 @@ def home():
     }
 
 
+
 # -------------------------------
 # Prediction API
 # -------------------------------
@@ -103,21 +107,16 @@ async def predict(
             )
 
 
-        # Run YOLO prediction
+        # -------------------------------
+        # YOLO Prediction
+        # -------------------------------
 
         results = model.predict(
             source=str(image_path),
             conf=0.05,
             imgsz=320,
-            save=True,
-            project=str(RESULTS_DIR),
-            name="prediction",
-            exist_ok=True,
             verbose=False
         )
-        print("YOLO RESULTS:")
-        for r in results:
-            print(r.boxes)
 
 
         detections = []
@@ -126,10 +125,9 @@ async def predict(
         for result in results:
 
 
-            # Extract detections
+            # Collect detections
 
             for box in result.boxes:
-
 
                 detections.append({
 
@@ -142,23 +140,18 @@ async def predict(
                 })
 
 
-            # YOLO output path
+            # -------------------------------
+            # Save annotated image
+            # -------------------------------
 
-            output_image = (
-                Path(result.save_dir)
-                / file.filename
+            annotated_image = result.plot()
+
+            output_path = RESULTS_DIR / file.filename
+
+            cv2.imwrite(
+                str(output_path),
+                annotated_image
             )
-
-
-            final_image = RESULTS_DIR / file.filename
-
-
-            if output_image.exists():
-
-                shutil.copy(
-                    output_image,
-                    final_image
-                )
 
 
         base_url = str(request.base_url).rstrip("/")
@@ -166,16 +159,13 @@ async def predict(
 
         return {
 
-
             "success": True,
 
             "total_detections":
             len(detections),
 
-
             "detections":
             detections,
-
 
             "output_image":
             f"{base_url}/results/{file.filename}"
