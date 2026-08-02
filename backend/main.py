@@ -34,23 +34,24 @@ UPLOAD_DIR = BASE_DIR / "uploads"
 RESULT_DIR = BASE_DIR / "results"
 MODEL_PATH = BASE_DIR / "best.pt"
 
-UPLOAD_DIR.mkdir(exist_ok=True)
-RESULT_DIR.mkdir(exist_ok=True)
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+RESULT_DIR.mkdir(parents=True, exist_ok=True)
 
 # ------------------------------------
 # Load Model
 # ------------------------------------
 
-print("Loading model...")
+print("================================")
+print("Loading SentinelAI Model...")
+print("================================")
 
 model = YOLO(str(MODEL_PATH))
 
 print("Model Loaded Successfully")
-
-print("Classes :", model.names)
+print("Classes:", model.names)
 
 # ------------------------------------
-# Static Folder
+# Serve Result Images
 # ------------------------------------
 
 app.mount(
@@ -67,11 +68,12 @@ app.mount(
 def home():
 
     return {
-        "message": "SentinelAI Backend Running"
+        "status": "running",
+        "message": "SentinelAI Backend Running Successfully"
     }
 
 # ------------------------------------
-# Prediction
+# Predict
 # ------------------------------------
 
 @app.post("/predict")
@@ -82,25 +84,22 @@ async def predict(
 
     try:
 
+        # Save uploaded image
+
         image_path = UPLOAD_DIR / file.filename
 
         with open(image_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
 
+        # Run YOLO
+
         results = model.predict(
-
             source=str(image_path),
-
             conf=0.05,
-
             imgsz=640,
-
             device="cpu",
-
             save=False,
-
             verbose=False
-
         )
 
         detections = []
@@ -113,9 +112,9 @@ async def predict(
 
                 detections.append({
 
-                    "class": model.names[int(box.cls)],
+                    "class": model.names[int(box.cls[0])],
 
-                    "confidence": round(float(box.conf), 2)
+                    "confidence": round(float(box.conf[0]), 2)
 
                 })
 
@@ -126,7 +125,22 @@ async def predict(
                 annotated
             )
 
+        # Check image exists
+
+        if not output_path.exists():
+
+            raise HTTPException(
+                status_code=500,
+                detail="Output image was not created."
+            )
+
         base_url = str(request.base_url).rstrip("/")
+
+        output_image_url = (
+            f"{base_url}/results/{file.filename}"
+        )
+
+        print("Image URL:", output_image_url)
 
         return {
 
@@ -136,12 +150,13 @@ async def predict(
 
             "detections": detections,
 
-            "output_image":
-                f"{base_url}/results/{file.filename}"
+            "output_image": output_image_url
 
         }
 
     except Exception as e:
+
+        print(e)
 
         raise HTTPException(
             status_code=500,
