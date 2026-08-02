@@ -4,7 +4,7 @@ from pathlib import Path
 import cv2
 from fastapi import FastAPI, UploadFile, File, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from ultralytics import YOLO
 
 app = FastAPI(
@@ -12,9 +12,9 @@ app = FastAPI(
     version="1.0"
 )
 
-# ------------------------------------
+# ---------------------------------
 # CORS
-# ------------------------------------
+# ---------------------------------
 
 app.add_middleware(
     CORSMiddleware,
@@ -24,9 +24,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ------------------------------------
+# ---------------------------------
 # Paths
-# ------------------------------------
+# ---------------------------------
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -37,9 +37,9 @@ MODEL_PATH = BASE_DIR / "best.pt"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 RESULT_DIR.mkdir(parents=True, exist_ok=True)
 
-# ------------------------------------
+# ---------------------------------
 # Load Model
-# ------------------------------------
+# ---------------------------------
 
 print("================================")
 print("Loading SentinelAI Model...")
@@ -50,31 +50,37 @@ model = YOLO(str(MODEL_PATH))
 print("Model Loaded Successfully")
 print("Classes:", model.names)
 
-# ------------------------------------
-# Serve Result Images
-# ------------------------------------
-
-app.mount(
-    "/results",
-    StaticFiles(directory=str(RESULT_DIR)),
-    name="results"
-)
-
-# ------------------------------------
+# ---------------------------------
 # Home
-# ------------------------------------
+# ---------------------------------
 
 @app.get("/")
 def home():
-
     return {
         "status": "running",
         "message": "SentinelAI Backend Running Successfully"
     }
 
-# ------------------------------------
-# Predict
-# ------------------------------------
+# ---------------------------------
+# Serve Output Image
+# ---------------------------------
+
+@app.get("/results/{filename}")
+def get_result(filename: str):
+
+    image_path = RESULT_DIR / filename
+
+    if not image_path.exists():
+        raise HTTPException(
+            status_code=404,
+            detail="Image not found"
+        )
+
+    return FileResponse(image_path)
+
+# ---------------------------------
+# Prediction
+# ---------------------------------
 
 @app.post("/predict")
 async def predict(
@@ -84,14 +90,10 @@ async def predict(
 
     try:
 
-        # Save uploaded image
-
         image_path = UPLOAD_DIR / file.filename
 
         with open(image_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
-
-        # Run YOLO
 
         results = model.predict(
             source=str(image_path),
@@ -111,11 +113,8 @@ async def predict(
             for box in result.boxes:
 
                 detections.append({
-
                     "class": model.names[int(box.cls[0])],
-
                     "confidence": round(float(box.conf[0]), 2)
-
                 })
 
             annotated = result.plot()
@@ -125,22 +124,19 @@ async def predict(
                 annotated
             )
 
-        # Check image exists
-
         if not output_path.exists():
 
             raise HTTPException(
                 status_code=500,
-                detail="Output image was not created."
+                detail="Failed to save output image."
             )
 
+        print("--------------------------------")
+        print("Saved:", output_path)
+        print("Exists:", output_path.exists())
+        print("--------------------------------")
+
         base_url = str(request.base_url).rstrip("/")
-
-        output_image_url = (
-            f"{base_url}/results/{file.filename}"
-        )
-
-        print("Image URL:", output_image_url)
 
         return {
 
@@ -150,7 +146,8 @@ async def predict(
 
             "detections": detections,
 
-            "output_image": output_image_url
+            "output_image":
+                f"{base_url}/results/{file.filename}"
 
         }
 
